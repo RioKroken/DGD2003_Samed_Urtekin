@@ -3,8 +3,8 @@ using System.IO;
 using UnityEngine;
 
 /// <summary>
-/// PlayerPrefs: basit ayarlar (ses, müzik açık/kapalı).
-/// JSON dosyası: daha zengin kayıt (skor, toplam para, oyun sayısı).
+/// PlayerPrefs: ses, hassasiyet gibi ayarlar.
+/// JSON: poster sayısı, asılı posterler, skor, süre, ilerleme.
 /// </summary>
 public class GameSaveManager : MonoBehaviour
 {
@@ -48,7 +48,9 @@ public class GameSaveManager : MonoBehaviour
         }
     }
 
-    void Awake()
+    string SavePath => Path.Combine(Application.persistentDataPath, SaveFileName);
+
+    private void Awake()
     {
         if (Instance != null && Instance != this)
         {
@@ -59,9 +61,32 @@ public class GameSaveManager : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
         LoadJson();
+        ApplySettings();
     }
 
-    string SavePath => Path.Combine(Application.persistentDataPath, SaveFileName);
+    private void Start()
+    {
+        ApplyProgressToScene();
+    }
+
+    private void OnApplicationPause(bool pause)
+    {
+        if (pause) SaveProgress();
+    }
+
+    private void OnApplicationQuit()
+    {
+        SaveProgress();
+    }
+
+    // --- PlayerPrefs (ayarlar) ---
+
+    public void ApplySettings()
+    {
+        AudioListener.volume = MasterVolume;
+    }
+
+    // --- JSON ---
 
     public void LoadJson()
     {
@@ -77,6 +102,8 @@ public class GameSaveManager : MonoBehaviour
             Data = JsonUtility.FromJson<GameSaveData>(json);
             if (Data == null)
                 Data = new GameSaveData();
+            if (Data.occupiedHangSpots == null)
+                Data.occupiedHangSpots = Array.Empty<string>();
         }
         catch (Exception e)
         {
@@ -90,15 +117,79 @@ public class GameSaveManager : MonoBehaviour
         Data.lastPlayedDate = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
         string json = JsonUtility.ToJson(Data, prettyPrint: true);
         File.WriteAllText(SavePath, json);
-        Debug.Log($"[GameSaveManager] Kaydedildi: {SavePath}");
     }
 
-    public void RecordGameResult(int moneyEarnedThisRun, int scoreThisRun)
+    public void SyncFromGame()
+    {
+        Data.posterCount = PosterInventory.Count;
+        Data.totalPostersHung = Mathf.Max(Data.totalPostersHung, CountOccupiedSpotsInScene());
+
+        GameTimer timer = FindFirstObjectByType<GameTimer>();
+        if (timer != null)
+            Data.timerSecondsLeft = timer.TimeLeft;
+
+        int runScore = Data.posterCount + Data.totalPostersHung;
+        if (runScore > Data.bestScore)
+            Data.bestScore = runScore;
+    }
+
+    public void SaveProgress()
+    {
+        SyncFromGame();
+        SaveJson();
+    }
+
+    public void ApplyProgressToScene()
+    {
+        PosterInventory.SetCount(Data.posterCount);
+
+        PosterHangSpot[] spots = FindObjectsByType<PosterHangSpot>(FindObjectsSortMode.None);
+        foreach (PosterHangSpot spot in spots)
+            spot.TryRestoreFromSave(Data.occupiedHangSpots);
+
+        GameTimer timer = FindFirstObjectByType<GameTimer>();
+        if (timer != null && Data.timerSecondsLeft >= 0f)
+            timer.LoadTimeLeft(Data.timerSecondsLeft);
+    }
+
+    public void RegisterHungSpot(string spotId)
+    {
+        if (string.IsNullOrEmpty(spotId)) return;
+
+        if (ContainsSpot(spotId)) return;
+
+        int len = Data.occupiedHangSpots.Length;
+        Array.Resize(ref Data.occupiedHangSpots, len + 1);
+        Data.occupiedHangSpots[len] = spotId;
+
+        Data.totalPostersHung = Data.occupiedHangSpots.Length;
+        SaveProgress();
+    }
+
+    public void OnPosterCountChanged()
+    {
+        Data.posterCount = PosterInventory.Count;
+        SaveJson();
+    }
+
+    public void RecordGameOver()
     {
         Data.gamesPlayed++;
-        Data.totalMoneyEarned += moneyEarnedThisRun;
-        if (scoreThisRun > Data.bestScore)
-            Data.bestScore = scoreThisRun;
+        Data.timerSecondsLeft = -1f;
+        SyncFromGame();
+        SaveJson();
+    }
+
+    public void RecordGameWin()
+    {
+        Data.gamesPlayed++;
+        Data.totalPostersHung = CountOccupiedSpotsInScene();
+        if (Data.totalPostersHung > Data.bestScore)
+            Data.bestScore = Data.totalPostersHung;
+
+        Data.posterCount = 0;
+        Data.occupiedHangSpots = Array.Empty<string>();
+        Data.timerSecondsLeft = -1f;
         SaveJson();
     }
 
@@ -109,5 +200,28 @@ public class GameSaveManager : MonoBehaviour
         if (File.Exists(SavePath))
             File.Delete(SavePath);
         Data = new GameSaveData();
+        ApplyProgressToScene();
+        ApplySettings();
+    }
+
+    private bool ContainsSpot(string spotId)
+    {
+        foreach (string id in Data.occupiedHangSpots)
+        {
+            if (id == spotId) return true;
+        }
+
+        return false;
+    }
+
+    private static int CountOccupiedSpotsInScene()
+    {
+        int count = 0;
+        foreach (PosterHangSpot spot in FindObjectsByType<PosterHangSpot>(FindObjectsSortMode.None))
+        {
+            if (spot.IsOccupied) count++;
+        }
+
+        return count;
     }
 }

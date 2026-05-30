@@ -126,6 +126,7 @@ public class PauseMenuController : MonoBehaviour
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
 
+        GameSaveManager.Instance?.SaveProgress();
         ShowMenu(firstPanel);
     }
 
@@ -193,6 +194,8 @@ public class PauseMenuController : MonoBehaviour
 
         if (GameSaveManager.Instance != null)
             GameSaveManager.Instance.MasterVolume = v;
+        else
+            PlayerPrefs.SetFloat("MasterVolume", v);
 
         AudioListener.volume = v;
     }

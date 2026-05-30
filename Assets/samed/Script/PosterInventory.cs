@@ -20,10 +20,17 @@ public class PosterInventory : MonoBehaviour
         Instance = this;
     }
 
+    public static void SetCount(int count)
+    {
+        Count = Mathf.Max(0, count);
+        OnCountChanged?.Invoke(Count);
+    }
+
     public static void AddPoster()
     {
         Count++;
         OnCountChanged?.Invoke(Count);
+        GameSaveManager.Instance?.OnPosterCountChanged();
     }
 
     public static bool TryUsePoster()
@@ -32,6 +39,7 @@ public class PosterInventory : MonoBehaviour
 
         Count--;
         OnCountChanged?.Invoke(Count);
+        GameSaveManager.Instance?.OnPosterCountChanged();
         return true;
     }
 }

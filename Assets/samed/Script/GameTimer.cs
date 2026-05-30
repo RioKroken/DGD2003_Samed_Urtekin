@@ -36,8 +36,18 @@ public class GameTimer : MonoBehaviour
 
     private void Start()
     {
-        _timeLeft = totalSeconds;
+        if (GameSaveManager.Instance != null && GameSaveManager.Instance.Data.timerSecondsLeft >= 0f)
+            _timeLeft = GameSaveManager.Instance.Data.timerSecondsLeft;
+        else
+            _timeLeft = totalSeconds;
+
         _isRunning = startOnPlay;
+        UpdateUI();
+    }
+
+    public void LoadTimeLeft(float seconds)
+    {
+        _timeLeft = Mathf.Max(0f, seconds);
         UpdateUI();
     }
 
@@ -54,6 +64,7 @@ public class GameTimer : MonoBehaviour
             _isRunning = false;
             UpdateUI();
             OnTimeUp?.Invoke();
+            GameSaveManager.Instance?.RecordGameOver();
             ReloadSceneIfNeeded();
             return;
         }

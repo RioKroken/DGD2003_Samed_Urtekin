@@ -8,13 +8,20 @@ public class PosterHangSpot : MonoBehaviour
     [SerializeField] private Material ghostMaterial;
     [SerializeField] private float ghostAlpha = 0.35f;
 
+    [Header("Kayıt")]
+    [SerializeField] private string spotId = "";
+
     [Header("Collider")]
     [SerializeField] private Collider interactCollider;
 
     public bool IsOccupied { get; private set; }
+    public string SpotId => string.IsNullOrEmpty(spotId) ? gameObject.name : spotId;
 
     private void Awake()
     {
+        if (string.IsNullOrEmpty(spotId))
+            spotId = gameObject.name;
+
         if (interactCollider == null)
             interactCollider = GetComponent<Collider>();
 
@@ -28,9 +35,30 @@ public class PosterHangSpot : MonoBehaviour
         if (IsOccupied) return false;
         if (!PosterInventory.TryUsePoster()) return false;
 
-        IsOccupied = true;
-        UpdateVisuals();
+        SetOccupied(true);
+        GameSaveManager.Instance?.RegisterHungSpot(SpotId);
+        PosterWinChecker.CheckAfterHang();
         return true;
+    }
+
+    public void TryRestoreFromSave(string[] occupiedIds)
+    {
+        if (occupiedIds == null) return;
+
+        foreach (string id in occupiedIds)
+        {
+            if (id == SpotId)
+            {
+                SetOccupied(true);
+                return;
+            }
+        }
+    }
+
+    private void SetOccupied(bool occupied)
+    {
+        IsOccupied = occupied;
+        UpdateVisuals();
     }
 
     private void PrepareHungPoster()
