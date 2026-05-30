@@ -54,7 +54,8 @@ public class GameSaveManager : MonoBehaviour
     {
         if (Instance != null && Instance != this)
         {
-            Destroy(gameObject);
+            // Sadece bu bileşeni sil — GameManager üzerindeki Timer/PauseMenu kalır.
+            Destroy(this);
             return;
         }
 
@@ -139,17 +140,58 @@ public class GameSaveManager : MonoBehaviour
         SaveJson();
     }
 
+    /// <summary>Ana menüden Start — yeni tur, eski poster/envanter yüklenmez.</summary>
+    public void BeginNewRun() => ResetRunData();
+
+    public static void ResetRunData()
+    {
+        GameSaveData data = Instance != null ? Instance.Data : LoadDataFromDisk();
+        data.posterCount = 0;
+        data.occupiedHangSpots = Array.Empty<string>();
+        data.timerSecondsLeft = -1f;
+
+        if (Instance != null)
+            Instance.SaveJson();
+        else
+            WriteDataToDisk(data);
+    }
+
+    private static GameSaveData LoadDataFromDisk()
+    {
+        string path = Path.Combine(Application.persistentDataPath, SaveFileName);
+        if (!File.Exists(path))
+            return new GameSaveData();
+
+        try
+        {
+            var data = JsonUtility.FromJson<GameSaveData>(File.ReadAllText(path));
+            if (data == null)
+                return new GameSaveData();
+            if (data.occupiedHangSpots == null)
+                data.occupiedHangSpots = Array.Empty<string>();
+            return data;
+        }
+        catch
+        {
+            return new GameSaveData();
+        }
+    }
+
+    private static void WriteDataToDisk(GameSaveData data)
+    {
+        string path = Path.Combine(Application.persistentDataPath, SaveFileName);
+        File.WriteAllText(path, JsonUtility.ToJson(data, prettyPrint: true));
+    }
+
     public void ApplyProgressToScene()
     {
-        PosterInventory.SetCount(Data.posterCount);
-
-        PosterHangSpot[] spots = FindObjectsByType<PosterHangSpot>(FindObjectsSortMode.None);
-        foreach (PosterHangSpot spot in spots)
-            spot.TryRestoreFromSave(Data.occupiedHangSpots);
+        PosterInventory.SetCount(0);
 
         GameTimer timer = FindFirstObjectByType<GameTimer>();
-        if (timer != null && Data.timerSecondsLeft >= 0f)
+        if (timer != null && Data.timerSecondsLeft > 0f)
             timer.LoadTimeLeft(Data.timerSecondsLeft);
+
+        PosterWinChecker.CheckAfterHang();
     }
 
     public void RegisterHungSpot(string spotId)

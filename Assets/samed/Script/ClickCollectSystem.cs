@@ -67,6 +67,11 @@ public class ClickCollectSystem : MonoBehaviour
         OnCollected?.Invoke(PosterInventory.Count);
     }
 
+    /// <summary>Kamera üzerindeki sistem değil — yerdeki poster prefab'ı.</summary>
+    public bool IsFloorCollectible =>
+        _camera == null && GetComponentInParent<Camera>() == null &&
+        GetComponentInParent<PosterHangSpot>() == null;
+
     public void CollectObject()
     {
         if (_camera != null) return;

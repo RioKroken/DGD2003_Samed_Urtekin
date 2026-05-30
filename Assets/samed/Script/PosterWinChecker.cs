@@ -1,46 +1,85 @@
 using System;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+/// <summary>
+/// Kazanma: duvardaki tüm poster noktalarına E ile basılıp poster değişince (PosterHangSpot).
+/// </summary>
 public class PosterWinChecker : MonoBehaviour
 {
     public static PosterWinChecker Instance { get; private set; }
     public static event Action OnAllPostersHung;
 
     [Header("Kazanma")]
-    [SerializeField] private bool reloadSceneOnWin = true;
-    [Tooltip("Boş = aynı sahne yeniden yüklenir")]
-    [SerializeField] private string reloadSceneName = "";
+    [SerializeField] private bool loadSceneOnWin = true;
+    [Tooltip("Boş = FirstMenuScene")]
+    [SerializeField] private string winSceneName = "FirstMenuScene";
+
+    [Header("Debug")]
+    [SerializeField] private bool logProgress;
 
     private static bool _gameEnded;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => _gameEnded = false;
 
     private void Awake()
     {
         if (Instance != null && Instance != this)
         {
-            Destroy(gameObject);
+            Destroy(this);
             return;
         }
 
         Instance = this;
     }
 
-    private void Start()
+    private void OnEnable() => SceneManager.sceneLoaded += OnSceneLoaded;
+
+    private void OnDisable()
     {
-        CheckAllPostersHung();
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+        if (Instance == this)
+            Instance = null;
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this)
+            Instance = null;
+    }
+
+    private static void OnSceneLoaded(Scene scene, LoadSceneMode mode) => _gameEnded = false;
+
+    private void Start() => StartCoroutine(CheckAfterSceneReady());
+
+    private IEnumerator CheckAfterSceneReady()
+    {
+        yield return null;
+        CheckAfterHang();
     }
 
     public static void CheckAfterHang()
     {
         if (_gameEnded) return;
 
-        PosterHangSpot[] spots = FindObjectsByType<PosterHangSpot>(FindObjectsSortMode.None);
+        PosterHangSpot[] spots = FindObjectsByType<PosterHangSpot>(
+            FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+
         if (spots.Length == 0) return;
 
+        int changed = 0;
         foreach (PosterHangSpot spot in spots)
         {
-            if (!spot.IsOccupied) return;
+            if (spot.IsOccupied)
+                changed++;
+            else
+                return;
         }
+
+        if (Instance != null && Instance.logProgress)
+            Debug.Log($"[PosterWin] Duvar posterleri tamam: {changed}/{spots.Length}", Instance);
 
         if (Instance != null)
             Instance.HandleWin();
@@ -48,19 +87,22 @@ public class PosterWinChecker : MonoBehaviour
             HandleWinStatic();
     }
 
-    private void CheckAllPostersHung()
+    public static int GetWallSpotTotal()
     {
-        if (_gameEnded) return;
+        return FindObjectsByType<PosterHangSpot>(FindObjectsInactive.Exclude, FindObjectsSortMode.None).Length;
+    }
 
-        PosterHangSpot[] spots = FindObjectsByType<PosterHangSpot>(FindObjectsSortMode.None);
-        if (spots.Length == 0) return;
-
-        foreach (PosterHangSpot spot in spots)
+    public static int GetWallSpotChanged()
+    {
+        int count = 0;
+        foreach (PosterHangSpot spot in FindObjectsByType<PosterHangSpot>(
+                     FindObjectsInactive.Exclude, FindObjectsSortMode.None))
         {
-            if (!spot.IsOccupied) return;
+            if (spot.IsOccupied)
+                count++;
         }
 
-        HandleWin();
+        return count;
     }
 
     private void HandleWin()
@@ -68,35 +110,49 @@ public class PosterWinChecker : MonoBehaviour
         if (_gameEnded) return;
         _gameEnded = true;
 
+        Debug.Log("[PosterWin] Tüm duvar posterleri değişti — oyun bitti!", this);
+
         OnAllPostersHung?.Invoke();
 
         GameTimer timer = FindFirstObjectByType<GameTimer>();
         if (timer != null)
             timer.StopTimer();
 
+        Time.timeScale = 1f;
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
         GameSaveManager.Instance?.RecordGameWin();
-        ReloadSceneIfNeeded();
+        LoadWinScene();
     }
 
     private static void HandleWinStatic()
     {
         _gameEnded = true;
         OnAllPostersHung?.Invoke();
+        Time.timeScale = 1f;
         GameSaveManager.Instance?.RecordGameWin();
-
-        if (string.IsNullOrEmpty(SceneManager.GetActiveScene().name))
-            return;
-
-        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        LoadWinSceneStatic();
     }
 
-    private void ReloadSceneIfNeeded()
+    private void LoadWinScene()
     {
-        if (!reloadSceneOnWin) return;
+        if (!loadSceneOnWin) return;
+        LoadWinSceneStatic();
+    }
 
-        if (string.IsNullOrEmpty(reloadSceneName))
-            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
-        else
-            SceneManager.LoadScene(reloadSceneName);
+    private static void LoadWinSceneStatic()
+    {
+        string scene = string.IsNullOrEmpty(Instance?.winSceneName)
+            ? "FirstMenuScene"
+            : Instance.winSceneName;
+
+        if (Application.CanStreamedLevelBeLoaded(scene))
+        {
+            SceneManager.LoadScene(scene);
+            return;
+        }
+
+        Debug.LogError($"[PosterWin] '{scene}' Build Settings'te yok.");
     }
 }

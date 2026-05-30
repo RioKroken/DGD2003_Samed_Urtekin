@@ -30,10 +30,10 @@ public class PosterHangSpot : MonoBehaviour
         UpdateVisuals();
     }
 
+    /// <summary>E ile duvardaki posteri değiştirir (envanter gerekmez).</summary>
     public bool TryHang()
     {
         if (IsOccupied) return false;
-        if (!PosterInventory.TryUsePoster()) return false;
 
         SetOccupied(true);
         GameSaveManager.Instance?.RegisterHungSpot(SpotId);
@@ -59,7 +59,10 @@ public class PosterHangSpot : MonoBehaviour
     {
         IsOccupied = occupied;
         UpdateVisuals();
+        OnOccupancyChanged?.Invoke();
     }
+
+    public static event System.Action OnOccupancyChanged;
 
     private void PrepareHungPoster()
     {

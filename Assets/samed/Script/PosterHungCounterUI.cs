@@ -1,25 +1,31 @@
 using TMPro;
 using UnityEngine;
 
+/// <summary>
+/// Duvarda değişen poster / toplam duvar noktası.
+/// </summary>
 public class PosterHungCounterUI : MonoBehaviour
 {
     [SerializeField] private TextMeshProUGUI countText;
-    [SerializeField] private string format = "Poster: {0}";
+    [SerializeField] private string format = "Poster: {0}/{1}";
 
     private void OnEnable()
     {
-        PosterInventory.OnCountChanged += UpdateText;
-        UpdateText(PosterInventory.Count);
+        PosterHangSpot.OnOccupancyChanged += Refresh;
+        Refresh();
     }
 
     private void OnDisable()
     {
-        PosterInventory.OnCountChanged -= UpdateText;
+        PosterHangSpot.OnOccupancyChanged -= Refresh;
     }
 
-    private void UpdateText(int count)
+    private void Refresh()
     {
         if (countText == null) return;
-        countText.text = string.Format(format, count);
+
+        int changed = PosterWinChecker.GetWallSpotChanged();
+        int total = PosterWinChecker.GetWallSpotTotal();
+        countText.text = string.Format(format, changed, total);
     }
 }

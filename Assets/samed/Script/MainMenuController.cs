@@ -45,6 +45,8 @@ public class MainMenuController : MonoBehaviour
             return;
         }
 
+        GameSaveManager.ResetRunData();
+
         SceneManager.LoadScene(gameSceneName);
     }
 
@@ -188,6 +190,10 @@ public class MainMenuController : MonoBehaviour
     private static void EnsureSaveManager()
     {
         if (GameSaveManager.Instance != null) return;
+
+        GameSaveManager existing = FindFirstObjectByType<GameSaveManager>();
+        if (existing != null) return;
+
         new GameObject("GameSaveManager (Auto)").AddComponent<GameSaveManager>();
     }
 }

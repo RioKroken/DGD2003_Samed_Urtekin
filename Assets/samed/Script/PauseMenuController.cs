@@ -47,6 +47,9 @@ public class PauseMenuController : MonoBehaviour
         BindVolumeSlider();
         CloseAllPanels();
         ApplySavedVolume();
+
+        if (!_isPaused)
+            Time.timeScale = 1f;
     }
 
     private void OnDestroy()
@@ -275,6 +278,10 @@ public class PauseMenuController : MonoBehaviour
     private static void EnsureSaveManager()
     {
         if (GameSaveManager.Instance != null) return;
+
+        GameSaveManager existing = FindFirstObjectByType<GameSaveManager>();
+        if (existing != null) return;
+
         new GameObject("GameSaveManager (Auto)").AddComponent<GameSaveManager>();
     }
 }

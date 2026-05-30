@@ -36,13 +36,22 @@ public class GameTimer : MonoBehaviour
 
     private void Start()
     {
-        if (GameSaveManager.Instance != null && GameSaveManager.Instance.Data.timerSecondsLeft >= 0f)
-            _timeLeft = GameSaveManager.Instance.Data.timerSecondsLeft;
-        else
-            _timeLeft = totalSeconds;
-
+        _timeLeft = ReadInitialTimeLeft();
         _isRunning = startOnPlay;
         UpdateUI();
+    }
+
+    private float ReadInitialTimeLeft()
+    {
+        if (GameSaveManager.Instance == null)
+            return totalSeconds;
+
+        float saved = GameSaveManager.Instance.Data.timerSecondsLeft;
+        // -1 = yeni oyun; 0 kayıt hatası sayılır, tam süre ver
+        if (saved > 0f)
+            return saved;
+
+        return totalSeconds;
     }
 
     public void LoadTimeLeft(float seconds)
